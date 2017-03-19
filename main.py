@@ -11,6 +11,8 @@ defaults = {
 
 end_date = date(2018, 5, 19)
 
+daily_allowance = defaults['account_remaining'] / (end_date - defaults['last_time']).days
+
 
 class MoneyManager:
     def __init__(self, filename):
@@ -43,9 +45,8 @@ class MoneyManager:
         now_timestamp = time.time()
         now = date.fromtimestamp(now_timestamp)
         last_time = date.fromtimestamp(self._data['last_time'])
-        print(last_time)
         days_since_last_time = (now - last_time).days
-        self._data['balance'] += days_since_last_time * (self._data['account_remaining'] / (end_date - last_time).days)
+        self._data['balance'] += days_since_last_time * daily_allowance
         self._data['last_time'] = now_timestamp
 
     def update_account(self, new_account_remaining):
@@ -66,7 +67,7 @@ def report():
 
 
 @cli.command()
-@click.argument('amount', default=0)
+@click.argument('amount', default=defaults['account_remaining'])
 def update_account(amount):
     with MoneyManager(datafile) as money_manager:
         money_manager.update_account(amount)
