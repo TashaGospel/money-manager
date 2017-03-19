@@ -1,35 +1,56 @@
-import json, sys, click, time
-from datetime import datetime
+import json, click, time, os
+from datetime import date
+
+datafile = "data.json"
+
+defaults = {
+    "account_remaining": 3600,
+    "balance": 0,
+    "last_time": date(2017, 3, 19)
+}
+
+end_date = date(2018, 5, 19)
+
 
 class MoneyManager:
     def __init__(self, filename):
-        defaults = {
-            "account_remaining": 3600,
-            "balance": 0,
-            "last_time": time.time()
-        }
         data = {}
 
-        # HACK: nested with - try - except
-        try:
+        if os.path.exists(filename):
             with open(filename, "r") as f:
                 try:
                     data = json.load(f)
                 except BaseException:
                     print("Can't read data, overwriting with defaults")
-        except FileNotFoundError as ex:
-            print(ex)
 
-        self.data = {**defaults, **data}
-        self.filename = filename
-        self.enddate = datetime(2018, 5, 19)
+        self._data = {**defaults, **data}
+        self._file_name = filename
 
-    def getdata(self):
-        return self.data
+    def __enter__(self):
+        return self
 
-    def writedata(self, data):
-        with open(self.filename, "w") as f:
-            json.dump(self.data, f)
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        with open(self._file_name, "w") as f:
+            json.dump(self._data, f)
+
+    def report(self):
+        return {
+            "account_remaining": self._data['account_remaining'],
+            "balance": self._data['balance']
+        }
+
+    def update_balance(self):
+        now_timestamp = time.time()
+        now = date.fromtimestamp(now_timestamp)
+        last_time = date.fromtimestamp(self._data['last_time'])
+        print(last_time)
+        days_since_last_time = (now - last_time).days
+        self._data['balance'] += days_since_last_time * (self._data['account_remaining'] / (end_date - last_time).days)
+        self._data['last_time'] = now_timestamp
+
+    def update_account(self, new_account_remaining):
+        self._data['balance'] -= self._data['account_remaining'] - new_account_remaining
+        self._data['account_remaining'] = new_account_remaining
 
 
 @click.group()
@@ -38,28 +59,15 @@ def cli():
 
 
 @cli.command()
-def show():
-    moneymanager = MoneyManager("data.json")
-    data = moneymanager.getdata()
-    now = datetime.fromtimestamp(time.time())
-    last_time = datetime.fromtimestamp(data['last_time'])
-    days_since_last_time = (now - last_time).days
-
-    data['balance'] += days_since_last_time * (data['account_remaining'] / (moneymanager.enddate - last_time).days)
-    data['last_time'] = now.timestamp()
-
-    print(data)
-    moneymanager.writedata(data)
+def report():
+    with MoneyManager(datafile) as money_manager:
+        money_manager.update_balance()
+        print(money_manager.report())
 
 
 @cli.command()
 @click.argument('amount', default=0)
 def update_account(amount):
-    moneymanager = MoneyManager("data.json")
-    data = moneymanager.getdata()
-
-    data['balance'] -= data['account_remaining'] - amount
-    data['account_remaining'] = amount
-
-    print(data)
-    moneymanager.writedata(data)
+    with MoneyManager(datafile) as money_manager:
+        money_manager.update_account(amount)
+        print(money_manager.report())
