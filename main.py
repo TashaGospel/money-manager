@@ -36,6 +36,7 @@ class MoneyManager:
             json.dump(self._data, f)
 
     def report(self):
+        self.update_balance()
         return {
             "account_remaining": self._data['account_remaining'],
             "balance": self._data['balance']
@@ -62,7 +63,6 @@ def cli():
 @cli.command()
 def report():
     with MoneyManager(datafile) as money_manager:
-        money_manager.update_balance()
         print(money_manager.report())
 
 
